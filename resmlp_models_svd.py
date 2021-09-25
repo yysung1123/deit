@@ -61,23 +61,6 @@ class DropSVD_Linear(nn.Module):
 
         return x
 
-'''
-class Elastic_SVD_Linear(nn.Module):
-    def __init__(self,ratio=0.8,in_channel=1024,out_channel=4096,bias=True):
-        super().__init__()
-        self.num_components = min(in_channel,out_channel)
-        self.ratio = ratio
-        self.S=torch.nn.Linear(in_channel,self.num_components,bias=False)
-        self.D=torch.nn.Linear(self.num_components,out_channel,bias=bias)
-        
-    def forward(self, x):
-        x = self.S(x)
-        x = dropout(x) if is_training
-        x = self.D(x)
-        
-        return x
-'''
-
 class Mlp(nn.Module):
     """ MLP as used in Vision Transformer, MLP-Mixer and related networks
     """

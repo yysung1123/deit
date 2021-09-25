@@ -238,6 +238,7 @@ def main(args):
             label_smoothing=args.smoothing, num_classes=args.nb_classes)
 
     print(f"Creating model: {args.model}")
+    '''
     model = create_model(
         args.model,
         pretrained=False,
@@ -246,6 +247,16 @@ def main(args):
         drop_path_rate=args.drop_path,
         drop_block_rate=None,
     )
+    '''
+    from resmlp_models import resmlp_12
+    model = resmlp_12(
+        num_classes=args.nb_classes,
+        drop_rate=args.drop,
+        drop_path_rate=args.drop_path)
+    state_dict = torch.load('./resmlp_12_dist.pth')
+    for layer_name in ['head.weight', 'head.bias']:
+        state_dict.pop(layer_name)
+    model.load_state_dict(state_dict, strict=False)
 
     if args.finetune:
         if args.finetune.startswith('https'):
