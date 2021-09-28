@@ -42,7 +42,10 @@ class DropSVD(nn.Module):
             idx = int(self.ratio * self.num_components)
         mask = torch.zeros((1, self.num_components)).to(x.device)
         mask[:,:idx] = 1
-        x = x * mask
+        if self.training:
+            x[:x.shape[0]//2] = x[:x.shape[0]//2] * mask
+        else:
+            x = x * mask
         return x
     
 class DropSVD_Linear(nn.Module):
