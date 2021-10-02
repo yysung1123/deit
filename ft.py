@@ -258,7 +258,7 @@ def main(args):
         SVD_Config=SVD_Config,
         drop_rate=args.drop,
         drop_path_rate=args.drop_path)
-    state_dict = torch.load('./resmlp12_cifar100_86.27_svd.pth')
+    state_dict = torch.load('./resmlp12_cifar100_87_svd.pth')
     model.load_state_dict(state_dict, strict=False)
 
     if args.finetune:
