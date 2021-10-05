@@ -49,18 +49,27 @@ class TMSVD_Linear(nn.Module):
         self.S=torch.nn.Linear(in_channel,self.num_components,bias=False)
         self.D=torch.nn.Linear(self.num_components,out_channel,bias=bias)
         
-    def forward(self,x,scaling_factor=None):
-        if self.training:
-            idx = torch.randint(len(self.svd_num_components),(1,)).item()
-        else:
-            idx = 0
-
+    def forward_subnet(self, x, idx):
         x = self.S(x)
         x = x[:,:,:self.svd_num_components[idx]]
         weight = torch.matmul(self.D.weight[:,:self.svd_num_components[idx]], self.transform_matrices[idx])
         x = F.linear(x, weight, self.D.bias)
 
         return x
+
+    def forward(self,x,scaling_factor=None):
+        if self.training:
+            idx = torch.randint(len(self.svd_num_components),(1,)).item()
+        else:
+            idx = 0
+
+        if self.training:
+            x1, x2 = x.tensor_split(2)
+            x1 = self.forward_subnet(x1, idx)
+            x2 = self.forward_subnet(x2, len(self.svd_num_components) - 1)
+            return torch.cat((x1, x2))
+        else:
+            return self.forward_subnet(x, idx)
 
 class Mlp(nn.Module):
     """ MLP as used in Vision Transformer, MLP-Mixer and related networks
