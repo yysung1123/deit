@@ -40,6 +40,7 @@ class WSSVD_Linear(nn.Module):
         self.svd_num_components = [int(round(self.num_components * r)) for r in self.ratio]
         self.VT = []
         self.U = []
+        self.bias = []
         for n in self.svd_num_components:
             param = nn.Parameter(torch.zeros(n, in_channel))
             if n == self.num_components:
@@ -52,6 +53,12 @@ class WSSVD_Linear(nn.Module):
                 param.requires_grad = False
             self.register_parameter(f"U_{n}", param)
             self.U.append(param)
+
+            param = nn.Parameter(torch.zeros(out_channel))
+            if n == self.num_components:
+                param.requires_grad = False
+            self.register_parameter(f"bias_{n}", param)
+            self.bias.append(param)
         
         self.S=torch.nn.Linear(in_channel,self.num_components,bias=False)
         self.D=torch.nn.Linear(self.num_components,out_channel,bias=bias)
@@ -62,10 +69,13 @@ class WSSVD_Linear(nn.Module):
 
         for (param, num_components) in zip(self.U, self.svd_num_components):
             param.data = self.D.weight.data[:, :num_components]
+
+        for param in self.bias:
+            param.data = self.D.bias.data
         
     def forward_subnet(self, x, idx):
         x = F.linear(x, self.VT[idx])
-        x = F.linear(x, self.U[idx], self.D.bias)
+        x = F.linear(x, self.U[idx], self.bias[idx])
 
         return x
 
