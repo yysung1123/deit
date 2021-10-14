@@ -43,20 +43,14 @@ class WSSVD_Linear(nn.Module):
         self.bias = []
         for n in self.svd_num_components:
             param = nn.Parameter(torch.zeros(n, in_channel))
-            if n == self.num_components:
-                param.requires_grad = False
             self.register_parameter(f"VT_{n}", param)
             self.VT.append(param)
 
             param = nn.Parameter(torch.zeros(out_channel, n))
-            if n == self.num_components:
-                param.requires_grad = False
             self.register_parameter(f"U_{n}", param)
             self.U.append(param)
 
             param = nn.Parameter(torch.zeros(out_channel))
-            if n == self.num_components:
-                param.requires_grad = False
             self.register_parameter(f"bias_{n}", param)
             self.bias.append(param)
         
