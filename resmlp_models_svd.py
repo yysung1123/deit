@@ -2,6 +2,7 @@
 # All rights reserved.
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from functools import partial
 
 from timm.models.vision_transformer import  PatchEmbed , _cfg
@@ -27,14 +28,14 @@ class SVD_Linear(nn.Module):
         x = self.D(x)
 
         return x
-    
+
 class DropSVD(nn.Module):
     def __init__(self,ratio,num_components):
         super().__init__()
         self.ratio = ratio
         self.num_components = num_components
         self.rand = torch.distributions.uniform.Uniform(self.ratio, 1.0)
-        
+
     def forward(self,x):
         if self.training:
             idx = int(self.rand.sample().item() * self.num_components)
@@ -47,7 +48,7 @@ class DropSVD(nn.Module):
         else:
             x = x * mask
         return x
-    
+
 class DropSVD_Linear(nn.Module):
     def __init__(self,ratio=0.8,in_channel=1024,out_channel=4096,bias=True):
         super().__init__()
@@ -61,6 +62,35 @@ class DropSVD_Linear(nn.Module):
         x = self.S(x)
         x = self.dropsvd(x)
         x = self.D(x)
+
+        return x
+
+class SVDLinearSuper(nn.Module):
+    def __init__(self,in_channel=1024,out_channel=4096,bias=True):
+        super().__init__()
+        self.num_components = min(in_channel,out_channel)
+        self.bias = bias
+        self.sample_ratio = None
+        self.samples = {}
+
+        self.S=torch.nn.Linear(in_channel,self.num_components,bias=False)
+        self.D=torch.nn.Linear(self.num_components,out_channel,bias=bias)
+
+    def set_sample_config(self, sample_ratio):
+        self.sample_ratio = sample_ratio
+
+        self._sample_parameters()
+
+    def _sample_parameters(self):
+        sample_dim = int(round(self.sample_ratio * self.num_components))
+        self.samples['VT_weight'] = self.S.weight[:sample_dim,:]
+        self.samples['U_weight'] = self.D.weight[:,:sample_dim]
+        if self.bias:
+            self.samples['bias'] = self.D.bias
+
+    def forward(self,x,scaling_factor=None):
+        x = F.linear(x, self.samples['VT_weight'])
+        x = F.linear(x, self.samples['U_weight'], self.samples['bias'])
 
         return x
 
@@ -91,16 +121,8 @@ class Mlp(nn.Module):
                 
                 self.fc2 = SVD_Linear(ratio2,hidden_features, out_features)
         elif self.drop_svd:
-            ratio1 = SVD_Config[layer]['fc1']
-            ratio2 = SVD_Config[layer]['fc2']
-            if ratio1==None:
-                self.fc1 = nn.Linear(in_features, hidden_features)
-            else:
-                self.fc1 = DropSVD_Linear(ratio1,in_features, hidden_features)
-            if ratio2==None:
-                self.fc2 = nn.Linear(hidden_features, out_features)
-            else:
-                self.fc2 = DropSVD_Linear(ratio2,hidden_features, out_features)
+            self.fc1 = SVDLinearSuper(in_features, hidden_features)
+            self.fc2 = SVDLinearSuper(hidden_features, out_features)
         self.act = act_layer()
         self.drop = nn.Dropout(drop)
 
@@ -174,6 +196,7 @@ class resmlp_models(nn.Module):
         self.feature_info = [dict(num_chs=embed_dim, reduction=0, module='head')]
         self.head = nn.Linear(embed_dim, num_classes) if num_classes > 0 else nn.Identity()
         self.apply(self._init_weights)
+        self.random_config_fn = None
 
     def _init_weights(self, m):
         if isinstance(m, nn.Linear):
@@ -210,6 +233,16 @@ class resmlp_models(nn.Module):
         x  = self.forward_features(x)
         x = self.head(x)
         return x 
+
+    def set_sample_config(self, SVD_Config):
+        for ratio, layer in zip(SVD_Config, filter(lambda x: isinstance(x, SVDLinearSuper), self.modules())):
+            layer.set_sample_config(ratio)
+
+    def set_random_config_fn(self, fn):
+        self.random_config_fn = fn
+
+    def set_random_sample_config(self):
+        self.set_sample_config(self.random_config_fn())
 
 @register_model
 def resmlp_12(pretrained=False,dist=False,is_svd=None,SVD_Config=None, **kwargs):

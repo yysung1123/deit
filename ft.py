@@ -250,16 +250,19 @@ def main(args):
     '''
     from resmlp_models_svd import resmlp_12
     from load_weight import Create_Model_Weight_Config
-    SVD_Config = Create_Model_Weight_Config(mode=0.5, layer=12)
     model = resmlp_12(
         num_classes=args.nb_classes,
         is_svd=False,
         drop_svd=True,
-        SVD_Config=SVD_Config,
         drop_rate=args.drop,
         drop_path_rate=args.drop_path)
     state_dict = torch.load('./resmlp12_cifar100_87_svd.pth')
     model.load_state_dict(state_dict, strict=False)
+
+    def _random_config_fn():
+        return np.random.choice(np.linspace(0.5, 1.0, 7), (12*2,)).tolist()
+
+    model.set_random_config_fn(_random_config_fn)
 
     if args.finetune:
         if args.finetune.startswith('https'):
@@ -407,6 +410,7 @@ def main(args):
                     'args': args,
                 }, checkpoint_path)
 
+        model.module.set_sample_config([0.5]*24)
         test_stats = evaluate(data_loader_val, model, device)
         print(f"Accuracy of the network on the {len(dataset_val)} test images: {test_stats['acc1']:.1f}%")
         max_accuracy = max(max_accuracy, test_stats["acc1"])

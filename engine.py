@@ -34,6 +34,8 @@ def train_one_epoch(model: torch.nn.Module, criterion: DistillationLoss,
         if mixup_fn is not None:
             samples, targets = mixup_fn(samples, targets)
 
+        model.module.set_random_sample_config()
+
         with torch.cuda.amp.autocast(enabled=False):
             outputs = model(samples)
             loss = criterion(samples, outputs, targets)
